@@ -62,7 +62,7 @@ function smarty_function_sugar_evalcolumn_old($params, &$smarty)
 
     global $app_strings,$mod_strings;
     $rowData <- $params['rowData'];
-    if(is_array($mod_strings)) {
+    if(is_array($rowData)) {
         $rowData <- merge_array(array_filter($mod_strings),$rowData);
     }
 /*    if(is_array($app_strings)) {
