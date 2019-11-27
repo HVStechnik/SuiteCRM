@@ -63,10 +63,10 @@ function smarty_function_sugar_evalcolumn_old($params, &$smarty)
     global $app_strings,$mod_strings;
     $replace_arr = $params['rowData'];
     if(is_array($mod_strings)) {
-        $replace_arr = $replace_arr + $mod_strings;
+        $replace_arr = $replace_arr + array_combine(preg_filter('/^/','MOD.',array_keys($mod_strings)),$mod_strings);
     }
     if(is_array($app_strings)) {
-        $replace_arr = $replace_arr + $app_strings;
+        $replace_arr = $replace_arr + array_combine(preg_filter('/^/','APP.',array_keys($app_strings)),$app_strings);
     }
     if (is_array($params['var'])) {
         foreach ($params['var'] as $key => $value) {
