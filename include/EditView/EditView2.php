@@ -5,7 +5,7 @@
  * SugarCRM, Inc. Copyright (C) 2004-2013 SugarCRM Inc.
  *
  * SuiteCRM is an extension to SugarCRM Community Edition developed by SalesAgility Ltd.
- * Copyright (C) 2011 - 2018 SalesAgility Ltd.
+ * Copyright (C) 2011 - 2019 SalesAgility Ltd.
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU Affero General Public License version 3 as published by the
@@ -669,7 +669,7 @@ class EditView
                     $this->fieldDefs[$name]['type'] === 'function' &&
                     isset($this->fieldDefs[$name]['function_name'])
                 ) {
-                    $value = $this->callFunction($this->fieldDefs[$name]);
+                    $value = $this->focus->computeFieldFunction($this->fieldDefs[$name]);
                     $valueFormatted = true;
                 }
 
@@ -932,7 +932,7 @@ class EditView
             $ajaxSave,
             $this->defs
         );
-        /* BEGIN - SECURITY GROUPS */ 
+        /* BEGIN - SECURITY GROUPS */
         //if popup select add panel if user is a member of multiple groups to metadataFile
         global $sugar_config;
         if(isset($sugar_config['securitysuite_popup_select']) && $sugar_config['securitysuite_popup_select'] == true
@@ -963,8 +963,8 @@ class EditView
                     }
                     //multilingual support
                     global $current_language;
-                    $ss_mod_strings = return_module_language($current_language, 'SecurityGroups');  
-                    
+                    $ss_mod_strings = return_module_language($current_language, 'SecurityGroups');
+
                     $lbl_securitygroups_select = $ss_mod_strings['LBL_GROUP_SELECT'];
                     $lbl_securitygroups = $ss_mod_strings['LBL_LIST_FORM_TITLE'];
 
@@ -995,54 +995,6 @@ EOQ;
     public function insertJavascript($javascript)
     {
         $this->ss->assign('javascript', $javascript);
-    }
-
-    /**
-     * @param $vardef
-     * @return mixed|string
-     */
-    public function callFunction($vardef)
-    {
-        $can_execute = true;
-        $execute_function = array();
-        $execute_params = array();
-        if (!empty($vardef['function_class'])) {
-            $execute_function[] = $vardef['function_class'];
-            $execute_function[] = $vardef['function_name'];
-        } else {
-            $execute_function = $vardef['function_name'];
-        }
-
-        foreach ($vardef['function_params'] as $param) {
-            if (empty($vardef['function_params_source']) || $vardef['function_params_source'] === 'parent') {
-                if (empty($this->focus->$param)) {
-                    $can_execute = false;
-                } else {
-                    $execute_params[] = $this->focus->$param;
-                }
-            } else {
-                if ($vardef['function_params_source'] === 'this') {
-                    if (empty($this->focus->$param)) {
-                        $can_execute = false;
-                    } else {
-                        $execute_params[] = $this->focus->$param;
-                    }
-                } else {
-                    $can_execute = false;
-                }
-            }
-        }
-
-        $value = '';
-        if ($can_execute) {
-            if (!empty($vardef['function_require'])) {
-                require_once($vardef['function_require']);
-            }
-
-            $value = call_user_func_array($execute_function, $execute_params);
-        }
-
-        return $value;
     }
 
     /**

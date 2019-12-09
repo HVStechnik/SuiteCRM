@@ -95,6 +95,8 @@ class templateParser
                         $link = $secureLink;
                         $repl_arr[$key . "_" . $fieldName] = '<img src="' . $link . '" width="'.$field_def['width'].'" height="'.$field_def['height'].'"/>';
                     }
+                } elseif ($field_def['type'] == 'function') {
+                    $repl_arr[$key . "_" . $fieldName] = $focus->computeFieldFunction($field_def);
                 } else {
                     $repl_arr[$key . "_" . $fieldName] = $focus->$fieldName;
                 }

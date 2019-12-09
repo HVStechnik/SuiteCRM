@@ -5,7 +5,7 @@
  * SugarCRM, Inc. Copyright (C) 2004-2013 SugarCRM Inc.
  *
  * SuiteCRM is an extension to SugarCRM Community Edition developed by SalesAgility Ltd.
- * Copyright (C) 2011 - 2018 SalesAgility Ltd.
+ * Copyright (C) 2011 - 2019 SalesAgility Ltd.
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU Affero General Public License version 3 as published by the
@@ -1362,53 +1362,11 @@ class SugarBean
                             $current_bean->$field = "";
                             unset($row[$field]);
                         }
-                        if (isset($value['source']) && $value['source'] == 'function') {
-                            $function_fields[] = $field;
-                        }
                     }
                     foreach ($row as $key => $value) {
                         $current_bean->$key = $value;
                     }
-                    foreach ($function_fields as $function_field) {
-                        $value = $current_bean->field_defs[$function_field];
-                        $can_execute = true;
-                        $execute_params = array();
-                        $execute_function = array();
-                        if (!empty($value['function_class'])) {
-                            $execute_function[] = $value['function_class'];
-                            $execute_function[] = $value['function_name'];
-                        } else {
-                            $execute_function = $value['function_name'];
-                        }
-                        foreach ($value['function_params'] as $param) {
-                            if (empty($value['function_params_source'])
-                                || $value['function_params_source'] == 'parent') {
-                                if (empty($this->$param)) {
-                                    $can_execute = false;
-                                } elseif ($param == '$this') {
-                                    $execute_params[] = $this;
-                                } else {
-                                    $execute_params[] = $this->$param;
-                                }
-                            } elseif ($value['function_params_source'] == 'this') {
-                                if (empty($current_bean->$param)) {
-                                    $can_execute = false;
-                                } elseif ($param == '$this') {
-                                    $execute_params[] = $current_bean;
-                                } else {
-                                    $execute_params[] = $current_bean->$param;
-                                }
-                            } else {
-                                $can_execute = false;
-                            }
-                        }
-                        if ($can_execute) {
-                            if (!empty($value['function_require'])) {
-                                require_once($value['function_require']);
-                            }
-                            $current_bean->$function_field = call_user_func_array($execute_function, $execute_params);
-                        }
-                    }
+                    $current_bean->fillInFunctionFields($this);
                     if (!empty($current_bean->parent_type) && !empty($current_bean->parent_id)) {
                         if (!isset($post_retrieve[$current_bean->parent_type])) {
                             $post_retrieve[$current_bean->parent_type] = array();
@@ -4594,6 +4552,7 @@ class SugarBean
                 }
             }
         }
+        $this->fillInFunctionFields();
 
         // call the custom business logic
         $custom_logic_arguments['id'] = $id;
@@ -5020,6 +4979,20 @@ class SugarBean
             $this->$idField = '';
             if (!empty($list)) {
                 $this->$idField = $list[0];
+            }
+        }
+    }
+
+    /**
+     * Takes a field name and calls the field's function from the vardefs.
+     *
+     * @param SugarBean $parent (optional)
+     */
+    public function fillInFunctionFields($parent = NULL)
+    {
+        foreach ($this->field_defs as $field => $vardef) {
+            if (isset($vardef['function_name']) && isset($vardef['source']) && $vardef['source'] == 'function') {
+                $this->$field = computeFieldFunction($vardef,$parent);
             }
         }
     }
@@ -6251,5 +6224,47 @@ class SugarBean
             $this->db->save_audit_records($this, $change);
             $this->fetched_row[$change['field_name']] = $change['after'];
         }
+    }
+
+    /**
+     * Takes a field vardef and calls the field's function from the vardefs.
+     * @param array $vardef
+     * @param SugarBean $parent (optional)
+     */
+    public function computeFieldFunction($vardef, $parent = NULL)
+    {
+        $execute_params = array();
+        $execute_function = array();
+        if (!empty($vardef['function_class'])) {
+            $execute_function[] = $vardef['function_class'];
+            $execute_function[] = $vardef['function_name'];
+        } else {
+            $execute_function = $vardef['function_name'];
+        }
+        foreach ($vardef['function_params'] as $param) {
+            if (isset($parent) && (empty($vardef['function_params_source']) || $vardef['function_params_source'] == 'parent')) {
+                if (empty($parent->$param)) {
+                    return '';
+                } elseif ($param == '$this') {
+                    $execute_params[] = $parent;
+                } else {
+                    $execute_params[] = $parent->$param;
+                }
+            } elseif ($vardef['function_params_source'] == 'this') {
+                if (empty($this->$param)) {
+                    return '';
+                } elseif ($param == '$this') {
+                    $execute_params[] = $this;
+                } else {
+                    $execute_params[] = $this->$param;
+                }
+            } else {
+                return '';
+            }
+        }
+        if (!empty($vardef['function_require'])) {
+            require_once($vardef['function_require']);
+        }
+        return(call_user_func_array($execute_function, $execute_params));    
     }
 }
