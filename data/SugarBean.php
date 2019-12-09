@@ -4986,13 +4986,13 @@ class SugarBean
     /**
      * Takes a field name and calls the field's function from the vardefs.
      *
-     * @param SugarBean $parent (optional)
+     * @param SugarBean $parent Optional
      */
     public function fillInFunctionFields($parent = NULL)
     {
         foreach ($this->field_defs as $field => $vardef) {
-            if (isset($vardef['function_name']) && isset($vardef['source']) && $vardef['source'] == 'function') {
-                $this->$field = computeFieldFunction($vardef,$parent);
+            if (isset($vardef['function_name']) && isset($vardef['source']) && $vardef['source'] === 'function') {
+                $this->$field = $this->computeFieldFunction($vardef,$parent);
             }
         }
     }
@@ -6229,18 +6229,16 @@ class SugarBean
     /**
      * Takes a field vardef and calls the field's function from the vardefs.
      * @param array $vardef
-     * @param SugarBean $parent (optional)
+     * @param SugarBean $parent Optional
      */
     public function computeFieldFunction($vardef, $parent = NULL)
     {
-        $execute_params = array();
-        $execute_function = array();
         if (!empty($vardef['function_class'])) {
-            $execute_function[] = $vardef['function_class'];
-            $execute_function[] = $vardef['function_name'];
+            $execute_function = [$vardef['function_class'],$vardef['function_name']];
         } else {
             $execute_function = $vardef['function_name'];
         }
+        $execute_params = array();
         foreach ($vardef['function_params'] as $param) {
             if (isset($parent) && (empty($vardef['function_params_source']) || $vardef['function_params_source'] == 'parent')) {
                 if (empty($parent->$param)) {
@@ -6265,6 +6263,6 @@ class SugarBean
         if (!empty($vardef['function_require'])) {
             require_once($vardef['function_require']);
         }
-        return(call_user_func_array($execute_function, $execute_params));    
+        return call_user_func_array($execute_function, $execute_params);
     }
 }
