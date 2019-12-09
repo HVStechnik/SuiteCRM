@@ -73,44 +73,49 @@ class AOS_PDF_TemplatesViewEdit extends ViewEdit
         $modules = $app_list_strings['pdf_template_type_dom'];
 
         foreach ($modules as $moduleName => $value) {
-            $options_array = array(''=>'');
             $mod_options_array = array();
 
             //Getting Fields
             if (!$beanList[$moduleName]) {
                 continue;
             }
-            $module = new $beanList[$moduleName]();
-
-            foreach ($module->field_defs as $name => $arr) {
-                if (!((isset($arr['dbType']) && strtolower($arr['dbType']) == 'id') || (isset($arr['type']) && $arr['type'] == 'id') || (isset($arr['type']) && $arr['type'] == 'link'))) {
-                    if (!isset($arr['reportable']) || $arr['reportable']) {
-                        $options_array['$'.$module->table_name.'_'.$name] = translate($arr['vname'], $module->module_dir);
-                    }
-                }
-            } //End loop.
-
+            $module = BeanFactory::newBean($moduleName);
+            $options_array = $this->getModuleOptionArray($module, $module->table_name.'_');
             $options = json_encode($options_array);
             $mod_options_array[$module->module_dir] = translate('LBL_MODULE_NAME', $module->module_dir);
             $insert_fields_js2 .="'$moduleName':$options,\n";
             $firstOptions = $options;
 
             $fmod_options_array = array();
+            $link_id_fields = array();
             foreach ($module->field_defs as $module_name => $module_arr) {
-                if (isset($module_arr['type']) && $module_arr['type'] == 'relate' && isset($module_arr['source']) && $module_arr['source'] == 'non-db') {
-                    $options_array = array(''=>'');
-                    if (isset($module_arr['module']) &&  $module_arr['module'] != '' && $module_arr['module'] != 'EmailAddress') {
-                        $relate_module_name = $beanList[$module_arr['module']];
-                        $relate_module = new $relate_module_name();
+                if (isset($module_arr['source']) && $module_arr['source'] == 'non-db' && isset($module_arr['type']) && $module_arr['type'] == 'link') {
+                    $module->load_relationship($module_name);
+                    $relate_module_name = $module->$module_name->getRelatedModuleName();
+                    if ($relate_module_name != 'EmailAddress') {
+                        $relate_module = BeanFactory::newBean($relate_module_name);
+                        $key = $module->table_name.'_'.$module_arr['name'];
+                        if ($module->$module_name->getType() == 'one') {
+                            $options_array = $this->getModuleOptionArray($relate_module, $key.'_');
+                        }
+                        else {
+                            $options_array = $this->getModuleOptionArray($relate_module, $key.'[]_');
+                        }
 
-                        foreach ($relate_module->field_defs as $relate_name => $relate_arr) {
-                            if (!((isset($relate_arr['dbType']) && strtolower($relate_arr['dbType']) == 'id') || $relate_arr['type'] == 'id' || $relate_arr['type'] == 'link')) {
-                                if ((!isset($relate_arr['reportable']) || $relate_arr['reportable']) && isset($relate_arr['vname'])) {
-                                    $options_array['$'.$module_arr['name'].'_'.$relate_name] = translate($relate_arr['vname'], $relate_module->module_dir);
-                                }
-                            }
-                        } //End loop.
+                        $options = json_encode($options_array);
+                        $insert_fields_js2 .="'$key':$options,\n";
+                        $fmod_options_array[$key] = translate($module_arr['vname'], $module->module_dir).' ('.translate($relate_module->module_dir).')';
 
+                        $link_id_fields[] = $module_arr['id_name'];
+                    }
+                }
+            }
+            foreach ($module->field_defs as $module_name => $module_arr) {
+                if (isset($module_arr['type']) && $module_arr['type'] == 'relate' && isset($module_arr['source']) && $module_arr['source'] == 'non-db' &&
+                    isset($module_arr['module']) &&  $module_arr['module'] != '' && $module_arr['module'] != 'EmailAddress' && !in_array($module_arr['id_name'],$link_id_fields)) {
+                        $relate_module = BeanFactory::newBean($module_arr['module']);
+
+                        $options_array = $this->getModuleOptionArray($relate_module, $module_arr['name'].'_');
                         $options = json_encode($options_array);
 
                         if ($module_arr['vname'] != 'LBL_DELETED') {
@@ -129,14 +134,7 @@ class AOS_PDF_TemplatesViewEdit extends ViewEdit
                 //add group fields
                 $options_array = array(''=>'');
                 $group_quote = new AOS_Line_Item_Groups();
-                foreach ($group_quote->field_defs as $line_name => $line_arr) {
-                    if (!((isset($line_arr['dbType']) && strtolower($line_arr['dbType']) == 'id') || $line_arr['type'] == 'id' || $line_arr['type'] == 'link')) {
-                        if ((!isset($line_arr['reportable']) || $line_arr['reportable'])) {//&& $line_arr['vname']  != 'LBL_NAME'
-                            $options_array['$'.$group_quote->table_name.'_'.$line_name] = translate($line_arr['vname'], $group_quote->module_dir);
-                        }
-                    }
-                }
-
+                $options_array = $this->getModuleOptionArray($group_quote, $group_quote->table_name.'_');
                 $options = json_encode($options_array);
 
                 $line_module_name = $beanList['AOS_Line_Item_Groups'];
@@ -144,26 +142,11 @@ class AOS_PDF_TemplatesViewEdit extends ViewEdit
                 $insert_fields_js2 .="'$line_module_name':$options,\n";
 
                 //PRODUCTS
-                $options_array = array(''=>'');
-
                 $product_quote = new AOS_Products_Quotes();
-                foreach ($product_quote->field_defs as $line_name => $line_arr) {
-                    if (!((isset($line_arr['dbType']) && strtolower($line_arr['dbType']) == 'id') || $line_arr['type'] == 'id' || $line_arr['type'] == 'link')) {
-                        if (!isset($line_arr['reportable']) || $line_arr['reportable']) {
-                            $options_array['$'.$product_quote->table_name.'_'.$line_name] = translate($line_arr['vname'], $product_quote->module_dir);
-                        }
-                    }
-                }
+                $options_array = $this->getModuleOptionArray($product_quote, $product_quote->table_name.'_');
 
-                $product_quote = new AOS_Products();
-                foreach ($product_quote->field_defs as $line_name => $line_arr) {
-                    if (!((isset($line_arr['dbType']) && strtolower($line_arr['dbType']) == 'id') || $line_arr['type'] == 'id' || $line_arr['type'] == 'link')) {
-                        if ((!isset($line_arr['reportable']) || $line_arr['reportable']) && $line_arr['vname']  != 'LBL_NAME') {
-                            $options_array['$'.$product_quote->table_name.'_'.$line_name] = translate($line_arr['vname'], $product_quote->module_dir);
-                        }
-                    }
-                }
-
+                $product = new AOS_Products();
+                $options_array = $this->getModuleOptionArray($product, $product->table_name.'_',$options_array);
                 $options = json_encode($options_array);
 
                 $line_module_name = $beanList['AOS_Products_Quotes'];
@@ -242,6 +225,21 @@ class AOS_PDF_TemplatesViewEdit extends ViewEdit
 HTML;
 
         $this->ss->assign('INSERT_FIELDS', $insert_fields);
+    }
+
+    protected function getModuleOptionArray(SugarBean $module, $key, &$options_array = NULL)
+    {
+        if (!isset($options_array)) {
+            $options_array = array(''=>'');
+        }
+        foreach ($module->field_defs as $field_name => $field_def) {
+            if (!((isset($field_def['dbType']) && strtolower($field_def['dbType']) == 'id') || (isset($field_def['type']) && $field_def['type'] == 'id') || (isset($field_def['type']) && $field_def['type'] == 'link'))) {
+                if ((!isset($field_def['reportable']) || $field_def['reportable']) && isset($field_def['vname'])) {
+                    $options_array['$'.$key.$field_name] = translate($field_def['vname'], $module->module_dir);
+                }
+            }
+        }
+        return $options_array;
     }
 
     public function displayTMCE()

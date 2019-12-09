@@ -33,21 +33,76 @@ class templateParser
     {
         foreach ($bean_arr as $bean_name => $bean_id) {
             $focus = BeanFactory::getBean($bean_name, $bean_id);
-            $string = templateParser::parse_template_bean($string, $focus->table_name, $focus);
+            $string = templateParser::parse_template_loop($string, $focus->table_name, $focus);
 
-            foreach ($focus->field_defs as $focus_name => $focus_arr) {
-                if ($focus_arr['type'] == 'relate') {
-                    if (isset($focus_arr['module']) && $focus_arr['module'] != '' && $focus_arr['module'] != 'EmailAddress') {
-                        $idName = $focus_arr['id_name'];
-                        $relate_focus = BeanFactory::getBean($focus_arr['module'], $focus->$idName);
 
-                        $string = templateParser::parse_template_bean($string, $focus_arr['name'], $relate_focus);
+            if($focus->table_name != strtolower($beanList[$bean_name])) {
+                $string = templateParser::parse_template_loop($string, strtolower($beanList[$bean_name], $focus);
+            }
+
+            // keep this for templates that refer to related fields with $relate_field_name directly
+            foreach ($focus->field_defs as $field_name => $field_def) {
+                if ($field_def['type'] == 'relate' && strpos($string,'$'.$field_def['name'].'_') !== FALSE) {
+                    if (isset($field_def['module']) && $field_def['module'] != '' && $field_def['module'] != 'EmailAddress') {
+                        $idName = $field_def['id_name'];
+                        $relate_focus = BeanFactory::getBean($field_def['module'], $focus->$idName);
+
+                        $string = templateParser::parse_template_bean($string, $field_def['name'], $relate_focus);
                     }
                 }
             }
         }
         return $string;
     }
+
+	public function parse_template_loop($string, $key, $focus)
+	{
+		foreach ($focus->field_defs as $field_name => $field_def) {
+            if ($field_def['type'] == 'relate'){
+				$key_related  = $key.'_'.$field_def['name'];
+				if(strpos($string,'$'.$key_related.'_') !== FALSE){
+					if(isset($field_def['module']) && $field_def['module'] != '' && $field_def['module'] != 'EmailAddress') {
+						$idName = $field_def['id_name'];
+						$relate_focus = BeanFactory::getBean($field_def['module'], $focus->$idName);
+
+						$string = templateParser::parse_template_loop($string, $key_related, $relate_focus);
+					}
+				}
+			}
+			elseif ($field_def['type'] == 'link'){
+				$key_related  = empty($key) ? $field_def['name'] : $key.'_'.$field_def['name'];
+				if(strpos($string,'$'.$key_related) !== FALSE && $focus->load_relationship($field_name)){
+					$relatedBeans = $focus->$field_name->getBeans();
+
+					// Are we just looking for a singe object indicated by a "_" after the key?
+					if($relatedBeans && strpos($string,'$'.$key_related.'_') !== FALSE){
+						$string = templateParser::parse_template_loop($string, $key_related, reset($relatedBeans));
+					}
+					// a M2M or O2M relationship
+					else{
+						$tables = array();
+						if(preg_match_all('~<tr((?!<tr).)+\$'.preg_quote($key_related).'\[\]((?!</tr).)*</tr>~six',$string,$tables) ||
+						   preg_match_all('~<p((?!<p).)+\$'.preg_quote($key_related).'\[\]((?!</p).)*</p>~six',$string,$tables) ||
+						   preg_match_all('~.*\$'.preg_quote($key_related).'\[\].*~ix',$string,$tables)){
+							$replace_arr = array();
+							foreach($tables[0] as $table){
+								$replacement = '';
+								foreach($relatedBeans as $relatedBean){
+									$replacement .= templateParser::parse_template_loop($table, $key_related.'[]', $relatedBean);
+								}
+								$replace_arr[] = $replacement;
+							}
+							$string = str_replace($tables[0], $replace_arr, $string);
+						}
+					}
+				}
+			}
+		}
+
+		$string = templateParser::parse_template_bean($string, $key, $focus);
+		return $string;
+	}
+
 
     public function parse_template_bean($string, $key, &$focus)
     {
