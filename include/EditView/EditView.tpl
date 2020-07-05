@@ -127,7 +127,7 @@ class="yui-navset"
 <tr>
 
 	{{math assign="rowCount" equation="$rowCount + 1"}}
-	
+
 	{{assign var='columnsInRow' value=$rowData|@count}}
 	{{assign var='columnsUsed' value=0}}
 
@@ -225,6 +225,9 @@ class="yui-navset"
 				{counter name="panelFieldCount"}
 			    {{$colData.displayParams}}
 				{{sugar_field parentFieldArray='fields'  accesskey=$ACCKEY tabindex=$tabindex vardef=$fields[$colData.field.name] displayType='EditView' displayParams=$colData.field.displayParams typeOverride=$colData.field.type formName=$form_name module=$module}}
+            {{elseif !empty($colData.field.includeTemplate)}}
+                {counter name="panelFieldCount"}
+                {{include file=$colData.field.includeTemplate}}
 			{{/if}}
 	{{if !empty($colData.field.customCode) && !empty($colData.field.customCodeRenderField)}}
 	    {counter name="panelFieldCount"}
